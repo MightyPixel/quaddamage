@@ -29,44 +29,46 @@
 #include "geometry.h"
 #include "scene.h"
 #include "random_generator.h"
+
 using std::min;
 using std::max;
 
 void Camera::beginFrame()
-{	
+{
 	double x2d = aspectRatio, y2d = +1;
-	
+
 	double wantedAngle = toRadians(fov/2);
 	double wantedLength = tan(wantedAngle);
 	double hypotLength = sqrt(sqr(aspectRatio) + sqr(1.0));
 	double scaleFactor = wantedLength / hypotLength;
-	
+
 	x2d *= scaleFactor;
 	y2d *= scaleFactor;
-	
+
 	topLeft = Vector(-x2d, y2d, 1);
 	topRight = Vector(x2d, y2d, 1);
 	bottomLeft = Vector(-x2d, -y2d, 1);
-	
-	rotation = 
+
+	rotation =
 		rotationAroundZ(toRadians(roll)) *
 		rotationAroundX(toRadians(pitch)) *
 		rotationAroundY(toRadians(yaw));
-	
+
 	topLeft *= rotation;
 	topRight *= rotation;
 	bottomLeft *= rotation;
-	
+
 	frontDir = Vector(0, 0, 1) * rotation;
 	upDir = Vector(0, 1, 0) * rotation;
 	rightDir = Vector(1, 0, 0) * rotation;
-	
+
 	topLeft += this->position;
 	topRight += this->position;
 	bottomLeft += this->position;
-	
+
 	if (autofocus) {
 		IntersectionInfo info;
+
 		double closest = 1e99;
 		Ray ray = getScreenRay(scene.settings.frameWidth / 2,
 								scene.settings.frameHeight / 2);
@@ -81,17 +83,29 @@ void Camera::beginFrame()
 
 Ray Camera::getScreenRay(double xScreen, double yScreen, int whichCamera)
 {
-	Vector throughPoint = 
+	Vector throughPoint =
 		topLeft + (topRight - topLeft) * (xScreen / frameWidth())
 				+ (bottomLeft - topLeft) * (yScreen / frameHeight());
-	
+
 	Ray ray;
-	ray.dir = throughPoint - this->position;
+	ray.dir = throughPoint - this->position + (fisheye ? Vector(0, 0, fishDist) : Vector());
 	ray.dir.normalize();
 	ray.start = this->position;
 	if (whichCamera != CAMERA_CENTRAL) {
 		ray.start += (whichCamera == CAMERA_RIGHT ? +1 : -1) * stereoSeparation * rightDir;
 	}
+
+    if (fisheye) {
+        Sphere reflectSphere;
+        IntersectionInfo info;
+        if (reflectSphere.intersect(ray, info)) {
+            ray.dir = info.normal;
+
+        } else {
+            ray.flags |= FE_OUTSIDE;
+        }
+    }
+
 	return ray;
 }
 
@@ -101,13 +115,13 @@ Ray Camera::getDOFRay(double xScreen, double yScreen, int whichCamera)
 	double cosTheta = dot(ray.dir, frontDir);
 	double M = focalPlaneDist / cosTheta;
 	Vector target = ray.start + ray.dir * M;
-	
+
 	double u, v;
 	Random& rnd = getRandomGen();
 	rnd.unitDiscSample(u, v);
 	u *= apertureSize;
 	v *= apertureSize;
-	
+
 	ray.start = ray.start + u * upDir + v * rightDir;
 	ray.dir = target - ray.start;
 	ray.dir.normalize();

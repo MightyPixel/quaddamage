@@ -51,11 +51,13 @@ public:
 	bool autofocus;
 	double stereoSeparation;
 	Color leftMask, rightMask;
-	
+    bool fisheye;
+    double fishDist;
+
 	Camera() {
 		position.makeZero();
 		yaw = pitch = roll = 0;
-		aspectRatio = 4./3.; 
+		aspectRatio = 4./3.;
 		fov = 90;
 		dof = false;
 		fNumber = 2.0;
@@ -65,8 +67,10 @@ public:
 		stereoSeparation = 0.0;
 		leftMask = Color(1, 0, 0);
 		rightMask = Color(0, 1, 1);
+        fisheye = true;
+        fishDist = 2;
 	}
-	
+
 	void fillProperties(ParsedBlock& pb)
 	{
 		if (!pb.getVectorProp("position", &position))
@@ -84,16 +88,18 @@ public:
 		pb.getDoubleProp("stereoSeparation", &stereoSeparation, 0.0);
 		pb.getColorProp("leftMask", &leftMask);
 		pb.getColorProp("rightMask", &rightMask);
-		
+        pb.getBoolProp("fisheye", &fisheye);
+        pb.getDoubleProp("fishDist", &fishDist);
+
 		apertureSize = 4.5 / fNumber;
 	}
-	
+
 	ElementType getElementType() const { return ELEM_CAMERA; }
 	void beginFrame();
-	
+
 	Ray getScreenRay(double xScreen, double yScreen, int whichCamera = CAMERA_CENTRAL);
 	Ray getDOFRay(double xScreen, double yScreen, int whichCamera = CAMERA_CENTRAL);
-	
+
 	void move(double sideways, double front_back);
 	void rotate(double yawDiff, double pitchDiff);
 
